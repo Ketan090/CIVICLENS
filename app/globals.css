@@ -1,0 +1,10 @@
+@import "tailwindcss";
+:root{--bg:#050608;--fg:#f7f7f5;--muted:#9aa0a6;--line:rgba(255,255,255,.07);--accent:#6DF0C2;--accent2:#7C8CFF}
+*{scroll-behavior:smooth}
+body{background:#050608;color:#f7f7f5;font-family:var(--font-geist-sans),system-ui,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+::selection{background:rgba(109,240,194,.28)}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:#1c1e22;border-radius:999px}
+@keyframes scanLine{0%{top:6%}50%{top:94%}100%{top:6%}}
+@keyframes scanGlow{0%,100%{opacity:.9;box-shadow:0 0 18px rgba(109,240,194,.9)}50%{opacity:1;box-shadow:0 0 22px rgba(109,240,194,1)}}
+@keyframes pulseBox{0%,100%{opacity:1}50%{opacity:.72}}
+.premium-card{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(16px) saturate(1.2);box-shadow:0 8px 32px rgba(0,0,0,.45)}
