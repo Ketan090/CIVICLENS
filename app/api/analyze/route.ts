@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 const UNO_KEY = process.env.UNO_API_KEY || "sk-M9KExYKZiSS7bUVtb0oKXNrdjPKYb2vl7nn4gkpM1eCZyYf3";
 const UNO_URL = "https://api.unorouter.com/v1/chat/completions";
 const UNO_MODELS = ["gemini-3.1-flash-lite:free","gemini-3.6-flash:free","qwen2.5-vl-7b-instruct-awq:free"];
-const OPEN_KEY = process.env.OPENROUTER_API_KEY || "OPENROUTER_KEY_PLACEHOLDER";
-const OPEN_URL = "https://openrouter.ai/api/v1/chat/completions";
+const COHERE_KEY = process.env.COHERE_API_KEY || "";
+const COHERE_URL = "https://api.cohere.com/v1/chat";
+const COHERE_MODEL = process.env.COHERE_MODEL || "command-a-vision-07-2025";
 let lastIdx = 0;
 export async function POST(req: NextRequest) {
   const form = await req.formData().catch(() => null);
@@ -40,27 +41,29 @@ Rules: isCivic=true if any civic problem else false. If false, detections=[] and
       return NextResponse.json({ engine: "unorouter", demo: false, data: parsed, raw: content, model: tryModel, tried: attempt+1 }, { headers: { "Cache-Control": "no-store" } });
     } catch (e: any) { lastError = `${tryModel} error: ${String(e.message||e).slice(0,100)}`; continue; }
   }
-  // 2) OpenRouter free vision (fallback)
-  try {
-    const r2 = await fetch(OPEN_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPEN_KEY}`, "HTTP-Referer": "http://localhost:3000", "X-Title": "CivicLens" },
-      body: JSON.stringify({ model: "inclusionai/ling-3.0-flash-vl:free", messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${b64}` } }] }], temperature: 0.3, max_tokens: 900 }),
-      signal: AbortSignal.timeout(20000) as any,
-    });
-    if (r2.ok) {
-      const j2 = (await r2.json()) as any;
-      const c2 = j2.choices?.[0]?.message?.content || "";
-      const m2 = c2.match(/\{[\s\S]*\}/);
-      let p2: any = m2 ? JSON.parse(m2[0]) : { raw: c2 };
-      return NextResponse.json({ engine: "openrouter", demo: false, data: p2, raw: c2, model: "inclusionai/ling-3.0-flash-vl:free" }, { headers: { "Cache-Control": "no-store" } });
-    }
-  } catch {}
+  // 2) Cohere vision (fallback) — uses COHERE_API_KEY
+  if (COHERE_KEY) {
+    try {
+      const r2 = await fetch(COHERE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${COHERE_KEY}` },
+        body: JSON.stringify({ model: COHERE_MODEL, messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${b64}` } }] }], max_tokens: 900 }),
+        signal: AbortSignal.timeout(20000) as any,
+      });
+      if (r2.ok) {
+        const j2 = (await r2.json()) as any;
+        const c2 = j2.text || j2.choices?.[0]?.message?.content || j2.generations?.[0]?.text || "";
+        const m2 = c2.match(/\{[\s\S]*\}/);
+        let p2: any = m2 ? JSON.parse(m2[0]) : { raw: c2 };
+        return NextResponse.json({ engine: "cohere", demo: false, data: p2, raw: c2, model: COHERE_MODEL }, { headers: { "Cache-Control": "no-store" } });
+      }
+    } catch {}
+  }
   return NextResponse.json({ demo: true, message: `All Uno 7 vision busy/rate-limited (1 req/min). Last: ${lastError}. Also tried OpenRouter. Wait 60s or start LM Studio (qwen2.5-vl) at 127.0.0.1:1234 for unlimited.` }, { status: 200, headers: { "Cache-Control": "no-store" } });
 }
 export async function GET() {
-  let unoOk=false, openOk=false;
+  let unoOk=false, cohereOk=false;
   try{ const r=await fetch(UNO_URL, {method:"POST", headers:{"Content-Type":"application/json", Authorization:`Bearer ${UNO_KEY}`}, body:JSON.stringify({model:UNO_MODELS[0], messages:[{role:"user", content:[{type:"text", text:"ping"}]} ], max_tokens:5}), signal:AbortSignal.timeout(4000) as any}); unoOk=r.ok; }catch{}
-  try{ const r2=await fetch(OPEN_URL, {method:"POST", headers:{"Content-Type":"application/json", Authorization:`Bearer ${OPEN_KEY}`, "HTTP-Referer":"http://localhost:3000"}, body:JSON.stringify({model:"inclusionai/ling-3.0-flash-vl:free", messages:[{role:"user", content:[{type:"text", text:"ping"}]} ], max_tokens:5}), signal:AbortSignal.timeout(4000) as any}); openOk=r2.ok; }catch{}
-  return NextResponse.json({ unorouter:{url:UNO_URL, model:UNO_MODELS[0], reachable:unoOk, freeCount:UNO_MODELS.length}, openrouter:{url:OPEN_URL, reachable:openOk}, engine: unoOk?"unorouter":openOk?"openrouter":"offline"}, {headers:{"Cache-Control":"no-store"}});
+  if (COHERE_KEY) { try{ const r2=await fetch(COHERE_URL, {method:"POST", headers:{"Content-Type":"application/json", Authorization:`Bearer ${COHERE_KEY}`}, body:JSON.stringify({model:COHERE_MODEL, messages:[{role:"user", content:[{type:"text", text:"ping"}]} ], max_tokens:5}), signal:AbortSignal.timeout(4000) as any}); cohereOk=r2.ok; }catch{} }
+  return NextResponse.json({ unorouter:{url:UNO_URL, model:UNO_MODELS[0], reachable:unoOk, freeCount:UNO_MODELS.length}, cohere:{url:COHERE_URL, model:COHERE_MODEL, reachable:cohereOk}, engine: unoOk?"unorouter":cohereOk?"cohere":"offline"}, {headers:{"Cache-Control":"no-store"}});
 }
