@@ -4,6 +4,9 @@ const FREE_MODELS_60 = [
 ];
 let lastWorkingIdx = 0;
 const UNO_KEY = process.env.UNO_API_KEY || "sk-M9KExYKZiSS7bUVtb0oKXNrdjPKYb2vl7nn4gkpM1eCZyYf3";
+const LLM7_KEY = process.env.LLM7_API_KEY || "xCdBvLAEhUumeRWB+iDUiBsJ7dl6zAku7xicnPpq82jbdRwm1tev8rMji1JCRI7lTUsaUqYeTQavSe6MwumRWGHprtYjQ9Ov+aKtxMaXyIRxQ/134Np8/6lKCZHyPZRyhi7uyPBBYF7g/j7pxxMM8Y0P";
+const LLM7_URL = process.env.LLM7_URL || "https://api.llm7.io/v1/chat/completions";
+const LLM7_MODEL = process.env.LLM7_MODEL || "gemini-3-flash";
 const UNO_URL = process.env.UNO_URL || "https://api.unorouter.com/v1/chat/completions";
 const UNO_MODEL = process.env.UNO_MODEL || "gemini-3.1-flash-lite:free";
 export async function POST(req: NextRequest) {
@@ -83,7 +86,23 @@ Rules: isCivic=true if any civic problem else false. If false, detections=[] and
       continue;
     }
   }
-  return NextResponse.json({ demo: true, message: `All 60 free models busy/rate-limited. Last: ${lastError}. Try again in 30s.` }, { status: 200, headers: { "Cache-Control": "no-store" } });
+  // Fallback to llm7.io when Uno is rate-limited
+  try {
+    const r2 = await fetch(LLM7_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${LLM7_KEY}` },
+      body: JSON.stringify({ model: LLM7_MODEL, messages: [{ role: "user", content: [{ type: "text", text: `You are CivicLens — tell what you see in 2-3 sentences. If civic problem (pothole garbage flood etc), list them. JSON {"isCivic":true,"problem":"...","whatSeen":"...","detections":[]}` }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${b64}` } }] }], temperature: 0.3, max_tokens: 900 }),
+      signal: AbortSignal.timeout(40000) as any,
+    });
+    if (r2.ok) {
+      const j2 = (await r2.json()) as any;
+      const c2 = j2.choices?.[0]?.message?.content || "";
+      const m2 = c2.match(/\{[\s\S]*\}/);
+      let p2: any = m2 ? JSON.parse(m2[0]) : { raw: c2 };
+      return NextResponse.json({ engine: "llm7", demo: false, data: p2, raw: c2, model: LLM7_MODEL }, { headers: { "Cache-Control": "no-store" } });
+    }
+  } catch {}
+  return NextResponse.json({ demo: true, message: `All 60 free models busy/rate-limited. Last: ${lastError}. Also tried llm7 (${LLM7_MODEL}) — still busy. Try again in 30s.` }, { status: 200, headers: { "Cache-Control": "no-store" } });
 }
 export async function GET() {
   let unoOk = false;
@@ -91,5 +110,10 @@ export async function GET() {
     const r = await fetch(UNO_URL, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${UNO_KEY}` }, body: JSON.stringify({ model: FREE_MODELS_60[0], messages: [{ role: "user", content: [{ type: "text", text: "ping" }] }], max_tokens: 5 }), signal: AbortSignal.timeout(4000) as any });
     unoOk = r.ok;
   } catch {}
-  return NextResponse.json({ unorouter: { url: UNO_URL, model: FREE_MODELS_60[0], reachable: unoOk, freeCount: FREE_MODELS_60.length, models: FREE_MODELS_60.slice(0,60) }, engine: unoOk ? "unorouter" : "offline" }, { headers: { "Cache-Control": "no-store" } });
+  let llm7Ok = false;
+  try {
+    const r2 = await fetch(LLM7_URL, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${LLM7_KEY}` }, body: JSON.stringify({ model: LLM7_MODEL, messages: [{ role: "user", content: [{ type: "text", text: "ping" }] }], max_tokens: 5 }), signal: AbortSignal.timeout(4000) as any });
+    llm7Ok = r2.ok;
+  } catch {}
+  return NextResponse.json({ unorouter: { url: UNO_URL, model: FREE_MODELS_60[0], reachable: unoOk, freeCount: FREE_MODELS_60.length, models: FREE_MODELS_60.slice(0,7) }, llm7: { url: LLM7_URL, model: LLM7_MODEL, reachable: llm7Ok }, engine: unoOk ? "unorouter" : llm7Ok ? "llm7" : "offline" }, { headers: { "Cache-Control": "no-store" } });
 }
