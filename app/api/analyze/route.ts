@@ -15,6 +15,9 @@ Respond ONLY valid JSON:
 Rules: isCivic=true if any civic problem else false. If false, detections=[] and problem="No civic issue". Never leave whatSeen empty.
 `;
   let lastError = "";
+  // Retry qwen until it responds (as requested)
+  const maxRetries = 6;
+  for (let retry=0; retry<maxRetries; retry++) {
   for (const prov of PROVIDERS) {
     for (const tryModel of prov.models) {
       try {
@@ -46,7 +49,9 @@ Rules: isCivic=true if any civic problem else false. If false, detections=[] and
       } catch (e: any) { lastError = `${prov.name}:${tryModel} error: ${String(e.message||e).slice(0,100)}`; continue; }
     }
   }
-  return NextResponse.json({ demo: true, message: `All providers busy. Last: ${lastError}. Try again in 30s or start LM Studio.` }, { status: 200, headers: { "Cache-Control": "no-store" } });
+    if (retry < maxRetries - 1) await new Promise(r=>setTimeout(r, 5000));
+  }
+  return NextResponse.json({ demo: true, message: `All providers busy after ${maxRetries} retries. Last: ${lastError}. Try again in 30s or start LM Studio.` }, { status: 200, headers: { "Cache-Control": "no-store" } });
 }
 export async function GET() {
   const checks = await Promise.all(PROVIDERS.map(async p=>{
