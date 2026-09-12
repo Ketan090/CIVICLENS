@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 const PROVIDERS = [
+  { name: "nvidia-llama", url: "https://integrate.api.nvidia.com/v1/chat/completions", key: process.env.NVIDIA_API_KEY || "NVIDIA_KEY_PLACEHOLDER", models: ["meta/llama-3.2-11b-vision-instruct","meta/llama-3.2-90b-vision-instruct"] },
   { name: "unorouter", url: "https://api.unorouter.com/v1/chat/completions", key: process.env.UNO_API_KEY || "UNO_KEY_PLACEHOLDER", models: ["gemini-3.1-flash-lite:free","qwen2.5-vl-7b-instruct-awq:free"] },
   { name: "openrouter", url: "https://openrouter.ai/api/v1/chat/completions", key: process.env.OPENROUTER_API_KEY || "OPENROUTER_KEY_PLACEHOLDER", models: ["inclusionai/ling-3.0-flash-vl:free"] },
   { name: "nvidia", url: "https://integrate.api.nvidia.com/v1/chat/completions", key: process.env.NVIDIA_API_KEY || "NVIDIA_KEY_PLACEHOLDER", models: ["nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"] },
