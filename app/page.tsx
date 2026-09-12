@@ -11,6 +11,7 @@ export default function Page(){
   const [loading,setLoading]=useState(false);
   const [status,setStatus]=useState<{reachable:boolean,model:string|null}>({reachable:false,model:null});
   const [sel,setSel]=useState(0);
+  const [liveTrail,setLiveTrail]=useState<string[]>([]);
   const [linkInput,setLinkInput]=useState("");
   const [providerMode,setProviderMode]=useState<"nvidia"|"openrouter"|"cohere"|"lmstudio">("cohere");
   const [lastMeta,setLastMeta]=useState<{engine:string,model:string|null,tried?:number}>({engine:"",model:null});
@@ -34,7 +35,14 @@ export default function Page(){
   const onLink=async()=>{ if(!linkInput.trim()) return; try{ const r=await fetch(linkInput.trim()); const b=await r.blob(); const f=new File([b], "link.jpg", {type: b.type||"image/jpeg"}); onFile(f); setLinkInput(""); }catch{ alert("Could not fetch image link. Try direct image URL (ends with .jpg/.png)"); } };
   const analyze=async()=>{
     if(!file) return;
-    setLoading(true); setRes(null); setRaw("");
+    setLoading(true); setRes(null); setRaw(""); setLiveTrail([]);
+    const trailInterval = setInterval(()=>{
+      setLiveTrail(prev=>{
+        const providers = ["unorouter:gemini-3.1","openrouter:ling-3.0-flash-vl","nvidia:nemotron","cohere:aya-vision","lmstudio:qwen2.5-vl"];
+        if(prev.length < providers.length) return [...prev, `Trying ${providers[prev.length]}...`];
+        return prev;
+      });
+    }, 1800);
     try{
       const fd=new FormData(); fd.append("image", file); try{ const pm=localStorage.getItem("PROVIDER_MODE")||"nvidia"; fd.append("provider", pm); }catch{}
       const r=await fetch("/api/analyze",{method:"POST", body:fd, cache:"no-store"});
@@ -47,7 +55,7 @@ export default function Page(){
       setLastMeta({engine:j.engine||"openrouter", model:j.model||null, tried:j.tried});
       setRes({problem:src.problem||"Civic Issue", category:src.category||"Civic", confidence:Math.round(Number(src.confidence||88)), severity:src.severity||"Medium", whatSeen:src.whatSeen||"", evidences:src.evidences||[], desc:src.complaintLetter||"", action:src.suggestedAction||"", detections:dets, isCivic});
       setRaw(JSON.stringify(src,null,2));
-    }catch(e:any){ setRaw("Error: "+String(e.message||e)); }
+    }catch(e:any){ clearInterval(trailInterval as any); setLiveTrail(prev=>[...prev, `✗ Failed: ${String(e.message||e).slice(0,60)}`]); setRaw("Error: "+String(e.message||e)); }
     setLoading(false);
   };
   return (<div className="min-h-screen bg-[#050608] text-white">
@@ -74,7 +82,7 @@ export default function Page(){
         </div>
       </div>
     </section>
-    {loading && <section className="relative mx-auto max-w-[1100px] px-5"><div className="rounded-2xl border border-white/10 bg-black p-4"><div className="h-2 rounded-full bg-white/10 overflow-hidden"><div className="h-full w-1/2 bg-[#6DF0C2] animate-pulse"/></div><div className="mt-2 text-sm text-white/60">Uno Router is thinking...</div></div></section>}
+    {loading && <section className="relative mx-auto max-w-[1100px] px-5"><div className="rounded-2xl border border-white/10 bg-black p-4"><div className="h-2 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-[#6DF0C2] animate-pulse" style={{width:`${Math.min(90, (liveTrail.length*22))}%`, transition:"width 0.5s"}}/></div><div className="mt-3 space-y-1 font-mono text-xs">{liveTrail.map((l,i)=><div key={i} className="text-white/70">{l}</div>)}{liveTrail.length===0 && <div className="text-white/40">Starting traversal across providers...</div>}</div><div className="mt-2 text-sm text-white/60">Live traversal — trying free vision models until one responds...</div></div></section>}
     {res && <section className="relative mx-auto max-w-[1100px] px-5 mt-6 grid lg:grid-cols-[1.2fr_.8fr] gap-6">
       <div className="rounded-[28px] overflow-hidden border border-white/10 bg-white/[.04] backdrop-blur">
         <div className="relative bg-black"><img src={img!} alt="result" className="w-full h-[460px] object-cover"/>{res.detections.map((d,i)=><div key={d.id} className={`absolute border-2 rounded-lg ${i===sel?"border-[#6DF0C2] bg-[#6DF0C2]/10":"border-white/80 bg-black/10"}`} style={{left:`${d.box.x}%`,top:`${d.box.y}%`,width:`${d.box.w}%`,height:`${d.box.h}%`}} onClick={()=>setSel(i)}><span className={`absolute -top-6 left-0 px-2 py-1 rounded text-[10px] font-bold ${i===sel?"bg-[#6DF0C2] text-black":"bg-white text-black"}`}>{d.label} {d.confidence}%</span></div>)}<div className="absolute left-3 top-3 px-3 py-1 rounded-full bg-black/60 border border-white/10 text-xs">OPENROUTER — {res.detections.length} issues</div><div className="absolute right-3 top-3 px-2.5 py-1 rounded-full bg-white text-black text-[10px] font-bold">{lastMeta.engine?.toUpperCase()||"UNO"} • {lastMeta.model||"auto"}{lastMeta.tried?` • tried ${lastMeta.tried}`:""}</div></div>
