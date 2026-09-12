@@ -11,6 +11,7 @@ export default function Page(){
   const [loading,setLoading]=useState(false);
   const [status,setStatus]=useState<{reachable:boolean,model:string|null}>({reachable:false,model:null});
   const [sel,setSel]=useState(0);
+  const [fetchUrl,setFetchUrl]=useState(""); const [fetchRes,setFetchRes]=useState(""); const [fetchLoading,setFetchLoading]=useState(false);
   const [liveTrail,setLiveTrail]=useState<string[]>([]);
   const [linkInput,setLinkInput]=useState("");
   const [providerMode,setProviderMode]=useState<"nvidia"|"openrouter"|"cohere"|"lmstudio">("cohere");
@@ -32,6 +33,7 @@ export default function Page(){
   },[]);
   useEffect(()=>{ try{ const m=localStorage.getItem("PROVIDER_MODE") as any; if(m) setProviderMode(m); }catch{} },[]);
   const onFile=(f:File)=>{ setFile(f); setImg(URL.createObjectURL(f)); setRes(null); setRaw(""); setSel(0); };
+  const doFetch=async()=>{ if(!fetchUrl.trim()) return; setFetchLoading(true); setFetchRes(""); try{ const r=await fetch("/api/fetch",{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({url:fetchUrl.trim()})}); const j=await r.json(); setFetchRes(j.content||j.error||JSON.stringify(j).slice(0,2000)); }catch(e:any){ setFetchRes("Error: "+String(e.message||e)); } setFetchLoading(false); };
   const onLink=async()=>{ if(!linkInput.trim()) return; try{ const r=await fetch(linkInput.trim()); const b=await r.blob(); const f=new File([b], "link.jpg", {type: b.type||"image/jpeg"}); onFile(f); setLinkInput(""); }catch{ alert("Could not fetch image link. Try direct image URL (ends with .jpg/.png)"); } };
   const analyze=async()=>{
     if(!file) return;
@@ -94,6 +96,7 @@ export default function Page(){
       </div>
     </section>}
     {raw && !res && <section className="relative mx-auto max-w-[1100px] px-5 mt-6"><div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-200">{raw}</div></section>}
+    <section className="relative mx-auto max-w-[1100px] px-5 mt-10"><div className="rounded-[28px] border border-white/10 bg-white/[.04] backdrop-blur p-6"><h3 className="font-semibold">🌐 Fetch Any URL — Website Reader</h3><p className="text-sm text-white/60 mt-1">Paste any URL and fetch its content (text/markdown/html) via <code className="px-1 bg-white/10 rounded">POST /api/fetch</code> or <code className="px-1 bg-white/10 rounded">GET /api/fetch?url=...</code></p><div className="mt-4 flex gap-2"><input value={fetchUrl} onChange={e=>setFetchUrl(e.target.value)} placeholder="https://example.com" className="flex-1 rounded-xl bg-white/[.06] border border-white/10 px-3 py-3 text-sm outline-none placeholder:text-white/30"/><button onClick={doFetch} disabled={fetchLoading||!fetchUrl.trim()} className="px-5 py-3 rounded-xl bg-white text-black text-sm font-bold disabled:opacity-40">{fetchLoading?"Fetching...":"Fetch"}</button></div>{fetchRes && <pre className="mt-4 p-4 rounded-xl bg-black/40 border border-white/10 text-xs leading-5 text-white/80 whitespace-pre-wrap break-words max-h-[400px] overflow-auto">{fetchRes.slice(0,8000)}</pre>}</div></section>
     <footer className="border-t border-white/10 mt-10 py-6 text-center text-xs text-white/40">CIVICLENS — Uno Router Edition • Free • /api/analyze → Uno Router</footer>
   </div>)
 }
