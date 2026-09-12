@@ -11,6 +11,8 @@ export default function Page(){
   const [loading,setLoading]=useState(false);
   const [status,setStatus]=useState<{reachable:boolean,model:string|null}>({reachable:false,model:null});
   const [sel,setSel]=useState(0);
+  const [linkInput,setLinkInput]=useState("");
+  const [providerMode,setProviderMode]=useState<"unorouter"|"openrouter"|"cohere"|"lmstudio">("cohere");
   const [lastMeta,setLastMeta]=useState<{engine:string,model:string|null,tried?:number}>({engine:"",model:null});
   const fileRef=useRef<HTMLInputElement>(null);
   const [dragOver,setDragOver]=useState(false);
@@ -27,12 +29,14 @@ export default function Page(){
     const poll=async()=>{ try{ const r=await fetch("/api/analyze",{cache:"no-store"}); const j=await r.json(); setStatus({reachable:!!j.openrouter?.reachable, model:j.openrouter?.model||null}); }catch{} };
     poll(); const id=setInterval(poll,5000); return()=>clearInterval(id);
   },[]);
+  useEffect(()=>{ try{ const m=localStorage.getItem("PROVIDER_MODE") as any; if(m) setProviderMode(m); }catch{} },[]);
   const onFile=(f:File)=>{ setFile(f); setImg(URL.createObjectURL(f)); setRes(null); setRaw(""); setSel(0); };
+  const onLink=async()=>{ if(!linkInput.trim()) return; try{ const r=await fetch(linkInput.trim()); const b=await r.blob(); const f=new File([b], "link.jpg", {type: b.type||"image/jpeg"}); onFile(f); setLinkInput(""); }catch{ alert("Could not fetch image link. Try direct image URL (ends with .jpg/.png)"); } };
   const analyze=async()=>{
     if(!file) return;
     setLoading(true); setRes(null); setRaw("");
     try{
-      const fd=new FormData(); fd.append("image", file);
+      const fd=new FormData(); fd.append("image", file); try{ const pm=localStorage.getItem("PROVIDER_MODE")||"unorouter"; fd.append("provider", pm); }catch{}
       const r=await fetch("/api/analyze",{method:"POST", body:fd, cache:"no-store"});
       const j=await r.json();
       if(j.demo){ setRaw(j.message||"Uno Router not reachable"); setLastMeta({engine:j.engine||"offline", model:j.model||null}); setLoading(false); return; }
@@ -48,7 +52,7 @@ export default function Page(){
   };
   return (<div className="min-h-screen bg-[#050608] text-white">
     <div className="fixed inset-0 pointer-events-none"><div className="absolute inset-0 bg-[radial-gradient(900px_560px_at_50%_-18%,rgba(109,240,194,.11),transparent_62%),radial-gradient(700px_480px_at_88%_18%,rgba(124,140,255,.09),transparent)]"/></div>
-    <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#050608]/70 backdrop-blur-xl"><div className="mx-auto max-w-[1100px] px-5 h-[64px] flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-[10px] bg-white text-black grid place-items-center font-black text-[11px]">CL</div><div><div className="font-semibold text-[15px]">CIVICLENS</div><div className="text-[10px] tracking-[.14em] text-white/45">OPENROUTER EDITION</div></div><span className={`hidden md:inline-flex ml-3 px-3 py-1 rounded-full text-xs font-bold border ${status.reachable?"bg-[#6DF0C2] text-black border-[#6DF0C2]":"bg-amber-400 text-black border-amber-400"}`}>{status.reachable?`● OPENROUTER — ${status.model||"connected"}`:"○ OPENROUTER OFFLINE"}</span></div><div className="text-xs text-white/50">Free • No key needed</div></div></header>
+    <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#050608]/70 backdrop-blur-xl"><div className="mx-auto max-w-[1100px] px-5 h-[64px] flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-[10px] bg-white text-black grid place-items-center font-black text-[11px]">CL</div><div><div className="font-semibold text-[15px]">CIVICLENS</div><div className="text-[10px] tracking-[.14em] text-white/45">OPENROUTER EDITION</div></div><span className={`hidden md:inline-flex ml-3 px-3 py-1 rounded-full text-xs font-bold border ${status.reachable?"bg-[#6DF0C2] text-black border-[#6DF0C2]":"bg-amber-400 text-black border-amber-400"}`}>{status.reachable?`● OPENROUTER — ${status.model||"connected"}`:"○ OPENROUTER OFFLINE"}</span></div><div className="flex items-center gap-2"><div className="hidden sm:flex items-center gap-1 p-1 rounded-full bg-black/40 border border-white/10"><button onClick={()=>{setProviderMode("unorouter"); try{localStorage.setItem("PROVIDER_MODE","unorouter")}catch{}}} className={`px-2.5 py-1 rounded-full text-xs font-bold ${providerMode==="unorouter"?"bg-[#6DF0C2] text-black":"text-white/60"}`}>Uno</button><button onClick={()=>{setProviderMode("cohere"); try{localStorage.setItem("PROVIDER_MODE","cohere")}catch{}}} className={`px-2.5 py-1 rounded-full text-xs font-bold ${providerMode==="cohere"?"bg-white text-black":"text-white/60"}`}>Cohere</button><button onClick={()=>{setProviderMode("lmstudio"); try{localStorage.setItem("PROVIDER_MODE","lmstudio")}catch{}}} className={`px-2.5 py-1 rounded-full text-xs font-bold ${providerMode==="lmstudio"?"bg-emerald-400 text-black":"text-white/60"}`}>LM Studio</button></div><div className="text-xs text-white/50 hidden md:block">Free • No key needed</div></div></div></header>
     <section className="relative mx-auto max-w-[1100px] px-5 pt-10 pb-6">
       <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs ${status.reachable?"bg-[#6DF0C2]/10 border-[#6DF0C2]/20 text-[#6DF0C2]":"bg-amber-400/10 border-amber-400/20 text-amber-200"}`}>{status.reachable?"● Connected to Uno Router — free vision":"○ Connecting to Uno Router..."}</div>
       <h1 className="mt-4 text-[42px] md:text-[54px] font-bold leading-[.9] tracking-[-0.04em]">Turn Any Photo<br/>Into <span className="text-[#6DF0C2]">Civic</span> Intelligence.</h1>
@@ -61,7 +65,7 @@ export default function Page(){
             <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e=>{const f=e.target.files?.[0]; if(f) onFile(f)}}/>
             {img ? <img src={img} alt="preview" className="w-full h-[300px] object-cover rounded-xl"/> : <div className="text-center py-10"><div className="mx-auto w-14 h-14 rounded-2xl bg-white text-black grid place-items-center">⬆</div><div className="mt-3 font-medium">Drop image or click to browse</div><div className="text-sm text-white/50">JPG • PNG • WEBP — <b className="text-white">drop here</b>, click, or <b className="text-white">paste (Ctrl+V anywhere)</b> — sent to Uno Router</div><div className="mt-1 text-xs text-white/30">Tip: screenshot → Ctrl+C → Ctrl+V | Mobile: tap box → Take Photo</div><button onClick={(e)=>{e.stopPropagation(); fileRef.current?.click();}} className="mt-3 md:hidden w-full py-2.5 rounded-xl bg-white text-black text-sm font-bold">📷 Take Photo</button></div>}
           </div>
-          <button disabled={!file||loading} onClick={analyze} className="mt-4 w-full py-4 rounded-xl bg-[#6DF0C2] text-black font-bold disabled:opacity-40">{loading?"Analyzing with Uno Router...":"Analyze with Uno Router →"}</button>
+          <div className="mt-3 flex gap-2"><input value={linkInput} onChange={e=>setLinkInput(e.target.value)} placeholder="Or paste image link (https://...jpg)" className="flex-1 rounded-xl bg-white/[.06] border border-white/10 px-3 py-2.5 text-sm outline-none placeholder:text-white/30"/><button onClick={onLink} className="px-4 py-2.5 rounded-xl bg-white text-black text-sm font-bold">Load Link</button></div><button disabled={!file||loading} onClick={analyze} className="mt-3 w-full py-4 rounded-xl bg-[#6DF0C2] text-black font-bold disabled:opacity-40">{loading?"Analyzing with Uno Router...":"Analyze with Uno Router →"}</button>
           <div className="mt-2 text-xs text-center text-white/40">{status.reachable?"Uno Router connected — detects everything in photo":"Connecting..."}</div>
         </div>
         <div className="space-y-3">
