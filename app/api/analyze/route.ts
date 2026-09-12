@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 const UNO_KEY = process.env.UNO_API_KEY || "sk-M9KExYKZiSS7bUVtb0oKXNrdjPKYb2vl7nn4gkpM1eCZyYf3";
 const UNO_URL = "https://api.unorouter.com/v1/chat/completions";
-const UNO_MODELS = ["gemini-3.1-flash-lite:free","gemini-3.6-flash:free","qwen2.5-vl-7b-instruct-awq:free"];
+const UNO_MODELS = ["qwen2.5-vl-7b-instruct-awq:free","gemini-3.1-flash-lite:free","gemini-3.6-flash:free"];
 const COHERE_KEY = process.env.COHERE_API_KEY || "";
 const COHERE_URL = "https://api.cohere.com/v1/chat";
-const COHERE_MODEL = process.env.COHERE_MODEL || "command-a-vision-07-2025";
+const COHERE_MODEL = process.env.COHERE_MODEL || "c4ai-aya-vision-32b";
 let lastIdx = 0;
 export async function POST(req: NextRequest) {
   const form = await req.formData().catch(() => null);
   if (!form) return NextResponse.json({ demo: true, message: "No image" }, { status: 400, headers: { "Cache-Control": "no-store" } });
   const file = form.get("image") as Blob | null;
+  const provider = ((form.get("provider") as string) || "unorouter").toLowerCase();
   if (!file) return NextResponse.json({ demo: true, message: "No image" }, { status: 400, headers: { "Cache-Control": "no-store" } });
   const buf = Buffer.from(await file.arrayBuffer());
   const b64 = buf.toString("base64");
