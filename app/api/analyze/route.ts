@@ -20,10 +20,10 @@ Rules: isCivic=true if any civic problem else false. If false, detections=[] and
   const maxRetries = 6;
   for (let retry=0; retry<maxRetries; retry++) {
   for (const prov of PROVIDERS) {
+    if (!prov.key || prov.key.includes("PLACEHOLDER")) { lastError = `${prov.name}: API key not set on server — add it in .env.local locally or Vercel env vars`; continue; }
     for (const tryModel of prov.models) {
       try {
-        const headers: Record<string,string> = { "Content-Type": "application/json" };
-        if (prov.key) headers["Authorization"] = `Bearer ${prov.key}`;
+        const headers: Record<string,string> = { "Content-Type": "application/json", "Authorization": `Bearer ${prov.key}` };
         if (prov.name==="openrouter") { headers["HTTP-Referer"]="http://localhost:3000"; headers["X-Title"]="CivicLens"; }
         let body: string;
         let url = prov.url;
