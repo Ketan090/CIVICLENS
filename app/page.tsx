@@ -16,7 +16,6 @@ export default function Page(){
   const [linkInput,setLinkInput]=useState("");
   const [providerMode,setProviderMode]=useState<"nvidia"|"openrouter"|"cohere"|"lmstudio">("cohere");
   const [lastMeta,setLastMeta]=useState<{engine:string,model:string|null,tried?:number}>({engine:"",model:null});
-  const [puterReady,setPuterReady]=useState(false);
   const fileRef=useRef<HTMLInputElement>(null);
   const [dragOver,setDragOver]=useState(false);
   useEffect(()=>{
@@ -33,11 +32,6 @@ export default function Page(){
     poll(); const id=setInterval(poll,5000); return()=>clearInterval(id);
   },[]);
   useEffect(()=>{ try{ const m=localStorage.getItem("PROVIDER_MODE") as any; if(m) setProviderMode(m); }catch{} },[]);
-  useEffect(()=>{
-    if((window as any).puter){ setPuterReady(true); return; }
-    const s=document.createElement("script"); s.src="https://js.puter.com/v2/"; s.async=true; s.onload=()=>setPuterReady(true); document.body.appendChild(s);
-    return()=>{ document.body.removeChild(s) };
-  },[]);
   const onFile=(f:File)=>{ setFile(f); setImg(URL.createObjectURL(f)); setRes(null); setRaw(""); setSel(0); };
   const onLink=async()=>{ if(!linkInput.trim()) return; try{ const r=await fetch(linkInput.trim()); const b=await r.blob(); const f=new File([b], "link.jpg", {type: b.type||"image/jpeg"}); onFile(f); setLinkInput(""); }catch{ alert("Could not fetch image link. Try direct image URL (ends with .jpg/.png)"); } };
   const analyze=async()=>{
@@ -54,25 +48,6 @@ export default function Page(){
     }, 1800);
     try{
       const fd=new FormData(); fd.append("image", file); try{ fd.append("provider", providerMode); }catch{}
-      // Puter.js first (free, per-user key, no rate limit)
-      if((window as any).puter?.ai){
-        try{
-          setLiveTrail(prev=>[...prev, "Trying Puter.js (free per-user AI)..."]);
-          const pr = await (window as any).puter.ai.chat([
-            { text: "You are CivicLens. Tell what you see in 2-3 sentences. If civic problem (pothole garbage flood drain crack sidewalk streetlight debris dumping traffic water scarcity air pollution), list them. Respond ONLY valid JSON: {isCivic:true,problem,whatSeen,detections:{label,confidence,box:{x,y,w,h}}} NEVER leave empty." },
-            { image: URL.createObjectURL(file) }
-          ]);
-          const pText = pr?.message?.content || JSON.stringify(pr) || "";
-          const mm = pText.match(/\{[\s\S]*\}/);
-          let pParsed: any = mm ? JSON.parse(mm[0]) : { raw: pText };
-          if(pParsed && pParsed.raw){ throw new Error("puter no json"); }
-          setLastMeta({engine:"puter", model:"puter-vision", tried:1});
-          const pDet = (pParsed.detections||[]).map((x:any,i:number)=>Object.keys(x.box||{}).length?({id:String(i+1),label:String(x.label||"ISSUE").toUpperCase(),category:x.category||"Civic",confidence:Math.round(Number(x.confidence||85)),box:x.box}):({id:String(i+1),label:String(x.label||"ISSUE").toUpperCase(),category:x.category||"Civic",confidence:Math.round(Number(x.confidence||85)),box:{x:28+i*6,y:34+i*8,w:34,h:24}}));
-          setRes({problem:pParsed.problem||(pParsed.isCivic===false?"No civic issue":""), category:pParsed.category||"Civic", confidence:Math.round(Number(pParsed.confidence||88)), severity:pParsed.severity||"Medium", whatSeen:pParsed.whatSeen||"", evidences:pParsed.evidences||[], desc:pParsed.complaintLetter||"", action:pParsed.suggestedAction||"", detections:pDet, isCivic:/no civic/i.test(pParsed.problem||"")?false:pParsed.isCivic!==false});
-          setRaw(JSON.stringify(pParsed,null,2));
-          setLoading(false); clearInterval(timer as any); clearInterval(trailInterval as any); return;
-        }catch(pe:any){ setLiveTrail(prev=>[...prev, `✗ Puter failed: ${String(pe&&pe.message||pe).slice(0,50)} - falling to server`]); }
-      }
       const r=await fetch("/api/analyze",{method:"POST", body:fd, cache:"no-store"});
       const j=await r.json();
       if(j.demo){ setRaw(j.message||"AI not reachable"); setLastMeta({engine:j.engine||"offline", model:j.model||null}); setLoading(false); return; }
@@ -88,7 +63,7 @@ export default function Page(){
   };
   return (<div className="min-h-screen bg-[#050608] text-white">
     <div className="fixed inset-0 pointer-events-none"><div className="absolute inset-0 bg-[radial-gradient(900px_560px_at_50%_-18%,rgba(109,240,194,.11),transparent_62%),radial-gradient(700px_480px_at_88%_18%,rgba(124,140,255,.09),transparent)]"/></div>
-    <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#050608]/70 backdrop-blur-xl"><div className="mx-auto max-w-[1100px] px-5 h-[64px] flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-[10px] bg-white text-black grid place-items-center font-black text-[11px]">CL</div><div><div className="font-semibold text-[15px]">CIVICLENS</div><div className="text-[10px] tracking-[.14em] text-white/45">PREMIUM EDITION</div></div><span className={`hidden md:inline-flex ml-3 px-3 py-1 rounded-full text-xs font-bold border ${status.reachable?"bg-[#6DF0C2] text-black border-[#6DF0C2]":"bg-amber-400 text-black border-amber-400"}`}>${puterReady?"● CONNECTED":"○ OFFLINE"}</span></div><div className="flex items-center gap-2"><div className="text-xs text-white/50 hidden md:block">Free • No key needed</div></div></div></header>
+    <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#050608]/70 backdrop-blur-xl"><div className="mx-auto max-w-[1100px] px-5 h-[64px] flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-[10px] bg-white text-black grid place-items-center font-black text-[11px]">CL</div><div><div className="font-semibold text-[15px]">CIVICLENS</div><div className="text-[10px] tracking-[.14em] text-white/45">PREMIUM EDITION</div></div><span className={`hidden md:inline-flex ml-3 px-3 py-1 rounded-full text-xs font-bold border ${status.reachable?"bg-[#6DF0C2] text-black border-[#6DF0C2]":"bg-amber-400 text-black border-amber-400"}`}>{status.reachable?"● CONNECTED":"○ OFFLINE"}</span></div><div className="flex items-center gap-2"><div className="text-xs text-white/50 hidden md:block">Free • No key needed</div></div></div></header>
     <section className="relative mx-auto max-w-[1100px] px-5 pt-10 pb-6">
       <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs ${status.reachable?"bg-[#6DF0C2]/10 border-[#6DF0C2]/20 text-[#6DF0C2]":"bg-amber-400/10 border-amber-400/20 text-amber-200"}`}>{status.reachable?"● Connected":"○ Connecting..."}</div>
       <h1 className="mt-4 text-[42px] md:text-[54px] font-bold leading-[.9] tracking-[-0.04em]">Turn Any Photo<br/>Into <span className="text-[#6DF0C2]">Civic</span> Intelligence.</h1>
@@ -110,7 +85,7 @@ export default function Page(){
         </div>
       </div>
     </section>
-    {loading && <section className="relative mx-auto max-w-[1100px] px-5"><div className="rounded-2xl border border-white/10 bg-black p-4"><div className="h-2 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-[#6DF0C2] animate-pulse" style={{width:`${Math.min(90, (liveTrail.length*22))}%`, transition:"width 0.5s"}}/></div><div className="mt-3 space-y-1 font-mono text-xs">{liveTrail.map((l,i)=><div key={i} className="text-white/70">{l}</div>)}{liveTrail.length===0 && <div className="text-white/40">Starting traversal across providers...</div>}</div><div className="mt-2 text-sm text-white/60">Live traversal — {puterReady?"using free Puter AI + server models":"trying free vision models"} until one responds...</div></div></section>}
+    {loading && <section className="relative mx-auto max-w-[1100px] px-5"><div className="rounded-2xl border border-white/10 bg-black p-4"><div className="h-2 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-[#6DF0C2] animate-pulse" style={{width:`${Math.min(90, (liveTrail.length*22))}%`, transition:"width 0.5s"}}/></div><div className="mt-3 space-y-1 font-mono text-xs">{liveTrail.map((l,i)=><div key={i} className="text-white/70">{l}</div>)}{liveTrail.length===0 && <div className="text-white/40">Starting traversal across providers...</div>}</div><div className="mt-2 text-sm text-white/60">Live traversal — trying free vision models until one responds...</div></div></section>}
     {res && <section className="relative mx-auto max-w-[1100px] px-5 mt-6 grid lg:grid-cols-[1.2fr_.8fr] gap-6">
       <div className="rounded-[28px] overflow-hidden border border-white/10 bg-white/[.04] backdrop-blur">
         <div className="relative bg-black"><img src={img!} alt="result" className="w-full h-[460px] object-cover"/>{res.detections.map((d,i)=><div key={d.id} className={`absolute border-2 rounded-lg ${i===sel?"border-[#6DF0C2] bg-[#6DF0C2]/10":"border-white/80 bg-black/10"}`} style={{left:`${d.box.x}%`,top:`${d.box.y}%`,width:`${d.box.w}%`,height:`${d.box.h}%`}} onClick={()=>setSel(i)}><span className={`absolute -top-6 left-0 px-2 py-1 rounded text-[10px] font-bold ${i===sel?"bg-[#6DF0C2] text-black":"bg-white text-black"}`}>{d.label} {d.confidence}%</span></div>)}<div className="absolute left-3 top-3 px-3 py-1 rounded-full bg-black/60 border border-white/10 text-xs">AI — {res.detections.length} issues</div><div className="absolute right-3 top-3 px-2.5 py-1 rounded-full bg-white text-black text-[10px] font-bold">AI • {res.detections.length} issues</div></div>

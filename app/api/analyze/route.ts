@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 const PROVIDERS = [
+  { name: "xkiro", url: "https://api.xkiro.com/v1/chat/completions", key: process.env.XKIRO_API_KEY || "", models: ["google/gemini-3.1-pro", "z-ai/glm-5v-turbo", "mistralai/mistral-large-2512", "anthropic/claude-haiku-4.5", "qwen/qwen3.7-max"] },
   { name: "qwen", url: "https://api.unorouter.com/v1/chat/completions", key: process.env.UNO_API_KEY || "UNO_KEY_PLACEHOLDER", models: ["qwen2.5-vl-7b-instruct-awq:free"] },
 ];
 export async function POST(req: NextRequest) {
