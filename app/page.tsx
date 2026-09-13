@@ -16,6 +16,7 @@ export default function Page(){
   const [linkInput,setLinkInput]=useState("");
   const [providerMode,setProviderMode]=useState<"nvidia"|"openrouter"|"cohere"|"lmstudio">("cohere");
   const [lastMeta,setLastMeta]=useState<{engine:string,model:string|null,tried?:number}>({engine:"",model:null});
+  const [puterReady,setPuterReady]=useState(false);
   const fileRef=useRef<HTMLInputElement>(null);
   const [dragOver,setDragOver]=useState(false);
   useEffect(()=>{
@@ -32,6 +33,11 @@ export default function Page(){
     poll(); const id=setInterval(poll,5000); return()=>clearInterval(id);
   },[]);
   useEffect(()=>{ try{ const m=localStorage.getItem("PROVIDER_MODE") as any; if(m) setProviderMode(m); }catch{} },[]);
+  useEffect(()=>{
+    if((window as any).puter){ setPuterReady(true); return; }
+    const s=document.createElement("script"); s.src="https://js.puter.com/v2/"; s.async=true; s.onload=()=>setPuterReady(true); document.body.appendChild(s);
+    return()=>{ document.body.removeChild(s) };
+  },[]);
   const onFile=(f:File)=>{ setFile(f); setImg(URL.createObjectURL(f)); setRes(null); setRaw(""); setSel(0); };
   const onLink=async()=>{ if(!linkInput.trim()) return; try{ const r=await fetch(linkInput.trim()); const b=await r.blob(); const f=new File([b], "link.jpg", {type: b.type||"image/jpeg"}); onFile(f); setLinkInput(""); }catch{ alert("Could not fetch image link. Try direct image URL (ends with .jpg/.png)"); } };
   const analyze=async()=>{
@@ -47,7 +53,26 @@ export default function Page(){
       });
     }, 1800);
     try{
-      const fd=new FormData(); fd.append("image", file); try{ const pm=localStorage.getItem("PROVIDER_MODE")||"nvidia"; fd.append("provider", pm); }catch{}
+      const fd=new FormData(); fd.append("image", file); try{ fd.append("provider", providerMode); }catch{}
+      // Puter.js first (free, per-user key, no rate limit)
+      if((window as any).puter?.ai){
+        try{
+          setLiveTrail(prev=>[...prev, "Trying Puter.js (free per-user AI)..."]);
+          const pr = await (window as any).puter.ai.chat([
+            { text: "You are CivicLens. Tell what you see in 2-3 sentences. If civic problem (pothole garbage flood drain crack sidewalk streetlight debris dumping traffic water scarcity air pollution), list them. Respond ONLY valid JSON: {isCivic:true,problem,whatSeen,detections:{label,confidence,box:{x,y,w,h}}} NEVER leave empty." },
+            { image: URL.createObjectURL(file) }
+          ]);
+          const pText = pr?.message?.content || JSON.stringify(pr) || "";
+          const mm = pText.match(/\{[\s\S]*\}/);
+          let pParsed: any = mm ? JSON.parse(mm[0]) : { raw: pText };
+          if(pParsed && pParsed.raw){ throw new Error("puter no json"); }
+          setLastMeta({engine:"puter", model:"puter-vision", tried:1});
+          const pDet = (pParsed.detections||[]).map((x:any,i:number)=>Object.keys(x.box||{}).length?({id:String(i+1),label:String(x.label||"ISSUE").toUpperCase(),category:x.category||"Civic",confidence:Math.round(Number(x.confidence||85)),box:x.box}):({id:String(i+1),label:String(x.label||"ISSUE").toUpperCase(),category:x.category||"Civic",confidence:Math.round(Number(x.confidence||85)),box:{x:28+i*6,y:34+i*8,w:34,h:24}}));
+          setRes({problem:pParsed.problem||(pParsed.isCivic===false?"No civic issue":""), category:pParsed.category||"Civic", confidence:Math.round(Number(pParsed.confidence||88)), severity:pParsed.severity||"Medium", whatSeen:pParsed.whatSeen||"", evidences:pParsed.evidences||[], desc:pParsed.complaintLetter||"", action:pParsed.suggestedAction||"", detections:pDet, isCivic:/no civic/i.test(pParsed.problem||"")?false:pParsed.isCivic!==false});
+          setRaw(JSON.stringify(pParsed,null,2));
+          setLoading(false); clearInterval(timer as any); clearInterval(trailInterval as any); return;
+        }catch(pe:any){ setLiveTrail(prev=>[...prev, `✗ Puter failed: ${String(pe&&pe.message||pe).slice(0,50)} - falling to server`]); }
+      }
       const r=await fetch("/api/analyze",{method:"POST", body:fd, cache:"no-store"});
       const j=await r.json();
       if(j.demo){ setRaw(j.message||"AI not reachable"); setLastMeta({engine:j.engine||"offline", model:j.model||null}); setLoading(false); return; }
@@ -63,18 +88,18 @@ export default function Page(){
   };
   return (<div className="min-h-screen bg-[#050608] text-white">
     <div className="fixed inset-0 pointer-events-none"><div className="absolute inset-0 bg-[radial-gradient(900px_560px_at_50%_-18%,rgba(109,240,194,.11),transparent_62%),radial-gradient(700px_480px_at_88%_18%,rgba(124,140,255,.09),transparent)]"/></div>
-    <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#050608]/70 backdrop-blur-xl"><div className="mx-auto max-w-[1100px] px-5 h-[64px] flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-[10px] bg-white text-black grid place-items-center font-black text-[11px]">CL</div><div><div className="font-semibold text-[15px]">CIVICLENS</div><div className="text-[10px] tracking-[.14em] text-white/45">PREMIUM EDITION</div></div><span className={`hidden md:inline-flex ml-3 px-3 py-1 rounded-full text-xs font-bold border ${status.reachable?"bg-[#6DF0C2] text-black border-[#6DF0C2]":"bg-amber-400 text-black border-amber-400"}`}>{status.reachable?`● CONNECTED — ${status.model||"AI"}`:"○ OFFLINE"}</span></div><div className="flex items-center gap-2"><div className="text-xs text-white/50 hidden md:block">Free • No key needed</div></div></div></header>
+    <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#050608]/70 backdrop-blur-xl"><div className="mx-auto max-w-[1100px] px-5 h-[64px] flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-[10px] bg-white text-black grid place-items-center font-black text-[11px]">CL</div><div><div className="font-semibold text-[15px]">CIVICLENS</div><div className="text-[10px] tracking-[.14em] text-white/45">PREMIUM EDITION</div></div><span className={`hidden md:inline-flex ml-3 px-3 py-1 rounded-full text-xs font-bold border ${status.reachable?"bg-[#6DF0C2] text-black border-[#6DF0C2]":"bg-amber-400 text-black border-amber-400"}`}>${puterReady?"● CONNECTED":"○ OFFLINE"}</span></div><div className="flex items-center gap-2"><div className="text-xs text-white/50 hidden md:block">Free • No key needed</div></div></div></header>
     <section className="relative mx-auto max-w-[1100px] px-5 pt-10 pb-6">
       <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs ${status.reachable?"bg-[#6DF0C2]/10 border-[#6DF0C2]/20 text-[#6DF0C2]":"bg-amber-400/10 border-amber-400/20 text-amber-200"}`}>{status.reachable?"● Connected":"○ Connecting..."}</div>
       <h1 className="mt-4 text-[42px] md:text-[54px] font-bold leading-[.9] tracking-[-0.04em]">Turn Any Photo<br/>Into <span className="text-[#6DF0C2]">Civic</span> Intelligence.</h1>
-      <p className="mt-3 max-w-[600px] text-white/60 leading-7">Cloud vision — tells what it sees, lists every civic problem if any — tells what it sees, and lists every civic problem if any.</p>
+      <p className="mt-3 max-w-[600px] text-white/60 leading-7">Free on-device + cloud AI — tells what it sees, lists every civic problem if any.</p>
     </section>
     <section className="relative mx-auto max-w-[1100px] px-5 pb-6">
       <div className="rounded-[28px] border border-white/10 bg-white/[.04] backdrop-blur p-6 grid lg:grid-cols-[1.1fr_.9fr] gap-6">
         <div>
           <div onClick={()=>fileRef.current?.click()} onDragEnter={(e)=>{e.preventDefault(); setDragOver(true);}} onDragLeave={(e)=>{e.preventDefault(); setDragOver(false);}} onDragOver={(e)=>{e.preventDefault(); e.stopPropagation(); setDragOver(true);}} onDrop={(e)=>{e.preventDefault(); e.stopPropagation(); setDragOver(false); let f:any = e.dataTransfer.files?.[0]; if(!f && e.dataTransfer.items){ for(const it of Array.from(e.dataTransfer.items) as any){ if(it.kind==="file"){ const ff=it.getAsFile(); if(ff && ff.type.startsWith("image/")){ f=ff; break; } } } } if(!f) f = e.dataTransfer.files?.[0] as any; if(f && f.type.startsWith("image/")) onFile(f); else if(f) onFile(f);}} className={`rounded-2xl border-2 border-dashed p-6 cursor-pointer transition ${dragOver?"border-[#6DF0C2] bg-[#6DF0C2]/10 scale-[1.01]":"border-white/15 bg-black/30 hover:bg-white/[.03]"}`}>
             <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e=>{const f=e.target.files?.[0]; if(f) onFile(f)}}/>
-            {img ? <img src={img} alt="preview" className="w-full h-[300px] object-cover rounded-xl"/> : <div className="text-center py-10"><div className="mx-auto w-14 h-14 rounded-2xl bg-white text-black grid place-items-center">⬆</div><div className="mt-3 font-medium">Drop image or click to browse</div><div className="text-sm text-white/50">JPG • PNG • WEBP — <b className="text-white">drop here</b>, click, or <b className="text-white">paste (Ctrl+V anywhere)</b></div><div className="mt-1 text-xs text-white/30">Tip: screenshot → Ctrl+C → Ctrl+V | Mobile: tap box → Take Photo</div><button onClick={(e)=>{e.stopPropagation(); fileRef.current?.click();}} className="mt-3 md:hidden w-full py-2.5 rounded-xl bg-white text-black text-sm font-bold">📷 Take Photo</button></div>}
+            {img ? <img src={img} alt="preview" className="w-full h-[300px] object-cover rounded-xl"/> : <div className="text-center py-10"><div className="mx-auto w-14 h-14 rounded-2xl bg-white text-black grid place-items-center">⬆</div><div className="mt-3 font-medium">Drop image or click to browse</div><div className="text-sm text-white/50">JPG • PNG • WEBP — <b className="text-white">drop here</b>, click, or <b className="text-white">paste (Ctrl+V anywhere)</b></div><div className="mt-1 text-xs text-white/30">Tip: screenshot → Ctrl+C → Ctrl+V | Mobile: tap box → Take Photo</div><div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-1"><button onClick={(e)=>{e.stopPropagation(); fileRef.current?.click();}} className="py-2.5 rounded-xl bg-white text-black text-sm font-bold">⬆ Upload Photo</button><button onClick={(e)=>{e.stopPropagation(); fileRef.current?.click();}} className="py-2.5 rounded-xl bg-white/[.1] border border-white/10 text-sm font-bold">📷 Camera</button></div></div>}
           </div>
           <div className="mt-3 flex gap-2"><input value={linkInput} onChange={e=>setLinkInput(e.target.value)} placeholder="Or paste image link (https://...jpg)" className="flex-1 rounded-xl bg-white/[.06] border border-white/10 px-3 py-2.5 text-sm outline-none placeholder:text-white/30"/><button onClick={onLink} className="px-4 py-2.5 rounded-xl bg-white text-black text-sm font-bold">Load Link</button></div><button disabled={!file||loading} onClick={analyze} className="mt-3 w-full py-4 rounded-xl bg-[#6DF0C2] text-black font-bold disabled:opacity-40">{loading?"Analyzing...":"Analyze →"}</button>
           <div className="mt-2 text-xs text-center text-white/40">{status.reachable?"AI connected — detects everything in photo":"Connecting..."}</div>
@@ -85,7 +110,7 @@ export default function Page(){
         </div>
       </div>
     </section>
-    {loading && <section className="relative mx-auto max-w-[1100px] px-5"><div className="rounded-2xl border border-white/10 bg-black p-4"><div className="h-2 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-[#6DF0C2] animate-pulse" style={{width:`${Math.min(90, (liveTrail.length*22))}%`, transition:"width 0.5s"}}/></div><div className="mt-3 space-y-1 font-mono text-xs">{liveTrail.map((l,i)=><div key={i} className="text-white/70">{l}</div>)}{liveTrail.length===0 && <div className="text-white/40">Starting traversal across providers...</div>}</div><div className="mt-2 text-sm text-white/60">Live traversal — trying free vision models until one responds...</div></div></section>}
+    {loading && <section className="relative mx-auto max-w-[1100px] px-5"><div className="rounded-2xl border border-white/10 bg-black p-4"><div className="h-2 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-[#6DF0C2] animate-pulse" style={{width:`${Math.min(90, (liveTrail.length*22))}%`, transition:"width 0.5s"}}/></div><div className="mt-3 space-y-1 font-mono text-xs">{liveTrail.map((l,i)=><div key={i} className="text-white/70">{l}</div>)}{liveTrail.length===0 && <div className="text-white/40">Starting traversal across providers...</div>}</div><div className="mt-2 text-sm text-white/60">Live traversal — {puterReady?"using free Puter AI + server models":"trying free vision models"} until one responds...</div></div></section>}
     {res && <section className="relative mx-auto max-w-[1100px] px-5 mt-6 grid lg:grid-cols-[1.2fr_.8fr] gap-6">
       <div className="rounded-[28px] overflow-hidden border border-white/10 bg-white/[.04] backdrop-blur">
         <div className="relative bg-black"><img src={img!} alt="result" className="w-full h-[460px] object-cover"/>{res.detections.map((d,i)=><div key={d.id} className={`absolute border-2 rounded-lg ${i===sel?"border-[#6DF0C2] bg-[#6DF0C2]/10":"border-white/80 bg-black/10"}`} style={{left:`${d.box.x}%`,top:`${d.box.y}%`,width:`${d.box.w}%`,height:`${d.box.h}%`}} onClick={()=>setSel(i)}><span className={`absolute -top-6 left-0 px-2 py-1 rounded text-[10px] font-bold ${i===sel?"bg-[#6DF0C2] text-black":"bg-white text-black"}`}>{d.label} {d.confidence}%</span></div>)}<div className="absolute left-3 top-3 px-3 py-1 rounded-full bg-black/60 border border-white/10 text-xs">AI — {res.detections.length} issues</div><div className="absolute right-3 top-3 px-2.5 py-1 rounded-full bg-white text-black text-[10px] font-bold">AI • {res.detections.length} issues</div></div>
