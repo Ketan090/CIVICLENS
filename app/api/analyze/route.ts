@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 const PROVIDERS = [
   { name: "qwen", url: "https://api.unorouter.com/v1/chat/completions", key: process.env.UNO_API_KEY || "UNO_KEY_PLACEHOLDER", models: ["qwen2.5-vl-7b-instruct-awq:free"] },
-  { name: "xkiro", url: "https://api.xkiro.com/v1/chat/completions", key: process.env.XKIRO_API_KEY || "", models: ["mistralai/mistral-large-2512","mistralai/mistral-medium-3.5","mistralai/mistral-small-2603","qwen/qwen3.5-flash:free","qwen/qwen3.5-plus:free","qwen/qwen3.8-max:free","qwen/qwen3-vl-plus:free","qwen/qwen3.7-plus:free","qwen/qwen3.6-plus:free","qwen/qwen3-max:free","qwen/qwen3.5-omni-plus:free","sensenova/sensenova-6.7-flash-lite","sensenova/sensenova-6.8-flash-lite","minimax/minimax-m3:free"] },
+  { name: "xkiro", url: "https://api.xkiro.com/v1/chat/completions", key: process.env.XKIRO_API_KEY || "", models: ["mistralai/mistral-medium-3.5","mistralai/mistral-large-2512","mistralai/mistral-small-2603","qwen/qwen3.5-flash:free","qwen/qwen3.5-plus:free","qwen/qwen3.8-max:free","qwen/qwen3-vl-plus:free","qwen/qwen3.7-plus:free","qwen/qwen3.6-plus:free","qwen/qwen3-max:free","qwen/qwen3.5-omni-plus:free","sensenova/sensenova-6.7-flash-lite","sensenova/sensenova-6.8-flash-lite","minimax/minimax-m3:free"] },
 ];
 export async function POST(req: NextRequest) {
   const form = await req.formData().catch(() => null);
