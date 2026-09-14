@@ -178,6 +178,15 @@ export default function Page(){
       </div>
     </section>}
     {raw && !res && <section className="relative mx-auto max-w-[1100px] px-5 mt-6"><div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-200">{raw}</div></section>}
-    <footer className="border-t border-white/10 mt-10 py-6 text-center text-xs text-white/40">CIVICLENS — Premium • Free • /api/analyze</footer>
+    <section className="relative mx-auto max-w-[1100px] px-5 mt-10">
+      <div className="rounded-[28px] border border-white/10 bg-white/[.04] backdrop-blur p-8 text-center">
+        <div className="w-12 h-12 mx-auto rounded-2xl bg-[#6DF0C2] text-black grid place-items-center font-black text-sm">KM</div>
+        <h3 className="mt-4 font-semibold text-lg">About CivicLens</h3>
+        <p className="mt-2 max-w-[640px] mx-auto text-sm leading-6 text-white/60">CivicLens is a premium, open-source civic intelligence platform that turns any photo into actionable insights — detecting potholes, garbage, flooding, and more with accurate YOLO markings and formal reports in 14 languages.</p>
+        <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white text-black text-sm font-bold">Made with ♥ by <span className="text-[#00b894]">Ketan Mahajan</span></div>
+        <div className="mt-2 text-xs text-white/40">Crafted for civic impact • Free • Open Source</div>
+      </div>
+    </section>
+    <footer className="border-t border-white/10 mt-10 py-6 text-center text-xs text-white/40">CIVICLENS — Premium • Free • /api/analyze • © {new Date().getFullYear()} Ketan Mahajan</footer>
   </div>)
 }
