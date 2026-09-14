@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# piper binary & models (large)
+piper.zip
+piper_bin/
+piper_models/
+server.log
+/tmp/
