@@ -47,7 +47,10 @@ Rules:
         const content = j.choices?.[0]?.message?.content || j.text || j.choices?.[0]?.text || "";
         if (!content || content.trim().length < 5) { lastError=`${tryModel} blank`; continue; }
         const m = content.match(/\{[\s\S]*\}/);
-        let parsed: any = m ? JSON.parse(m[0]) : { raw: content };
+        if(!m){ lastError=`${tryModel} no JSON`; continue; }
+        let parsed: any;
+        try{ parsed=JSON.parse(m[0]); }catch{ lastError=`${tryModel} JSON parse fail`; continue; }
+        if(!parsed || typeof parsed!=="object"){ lastError=`${tryModel} empty parse`; continue; }
         if (parsed && !parsed.raw) {
           const p = parsed as any;
           if (!p.whatSeen || String(p.whatSeen).trim().length < 10) p.whatSeen = p.isCivic===false ? "No civic issue — image shows general scene." : `Civic issue visible: ${p.problem}`;
